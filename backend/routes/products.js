@@ -1,7 +1,7 @@
 const express = require('express')
 const router = express.Router();
 const db = require('../db/database');
-const { default: Pagination } = require('../../frontend/src/components/Pagination');
+
 
 
 
@@ -26,11 +26,11 @@ router.get( '/' , (req ,res) =>{
 
     // build where clause dynamically
 
-    let where  =   'WHERE 1=1';
+    let where = 'WHERE 1=1';
 
      const args = [];
      if(search) {
-        where = where + 'AND( p. ProductName LIKE ? OF c.categoryName LIKE ?)';
+        where = where + ' AND ( p. ProductName LIKE ? OR c.categoryName LIKE ?)';
         args.push(search , search);
      }
 
@@ -42,7 +42,7 @@ router.get( '/' , (req ,res) =>{
      // count total matching records
 
      const {total} = db.prepare(`
-        SELECT COUNT(*) AS total FROM products p  JOIN categories c ON  p.CategroryId = c.CategoryId
+        SELECT COUNT(*) AS total FROM products p  JOIN categories c ON  p.CategoryId = c.CategoryId
         ${where}
         `).get(...args);
 
@@ -73,7 +73,7 @@ const products = db.prepare(`
          pagination :{
             page , 
             pageSize , total, 
-            totalPages : Math.max.ceil(total / pageSize),
+            totalPages : Math.ceil(total / pageSize),
             from : total === 0 ? 0 : offset + 1,
             to: Math.min(offset + pageSize , total),
          }
@@ -122,7 +122,7 @@ console.log("something wnet wrong during fetching the single product");
 
   // Post -  create product
 
-  router.post('/:id' , (req , res) =>{
+  router.post('/' , (req , res) =>{
     const { ProductName , CategoryId , Price ,Stock , Description} = req.body ;
 
     if(!ProductName?.trim()) {
@@ -144,7 +144,7 @@ console.log("something wnet wrong during fetching the single product");
   try {
     
     const result = db.prepare(`
-        ERT INTO products (ProductName, CategoryId, Price, Stock, Description)
+        INSERT INTO products (ProductName, CategoryId, Price, Stock, Description)
       VALUES (?, ?, ?, ?, ?)
     `).run(ProductName.trim(), CategoryId, parseFloat(Price), parseInt(Stock) || 0, Description || '');
     
@@ -239,5 +239,5 @@ db.prepare('DELETE FROM products WHERE ProductId = ?').run(req.params.id);
 
 });
 
-module.exports.router;
+module.exports = router;
 

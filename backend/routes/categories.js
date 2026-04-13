@@ -6,11 +6,11 @@ const db = require("../db/database")
 
 //get all categories
 
-router.get('/' , (req , res) =>{
+router.get('/',(req , res) =>{
     try {
          
         const data = db.prepare(
-            'SELECT * FROM categories ORDER BT CategoryName'
+            'SELECT * FROM categories ORDER BY CategoryName'
         ).all();
 
         res.json(({
@@ -19,7 +19,7 @@ router.get('/' , (req , res) =>{
 
 
     } catch (error) {
-        res.statusCode(500).json({
+        res.status(500).json({
             success :false , 
             message : error.message
         }) 
@@ -50,7 +50,7 @@ router.get("/:id", (req, res) => {
       data: row,
     });
   } catch (error) {
-    res.status(500).json({ success: false, message: err.message });
+    res.status(500).json({ success: false, message: error.message });
     console.log("Getting error while fetching the single category");
   }
 });
@@ -108,7 +108,7 @@ router.post('/' , (req ,res) => {
 router.put('/:id', (req , res) => {
     const {CategoryName , Description} = req.body;
 
-    if(CategoryName?.trim()) {
+    if(!CategoryName?.trim()) {
         return (
             res.status(400).json({
                 success:false,
@@ -187,13 +187,11 @@ if(cnt > 0 ){
     ) 
 }
 
+
 db.prepare('DELETE FROM categories WHERE CategoryId = ?').run(req.params.id);
 res.json({
     success : true , message: "category delete sucessfully"
 })
-
-
-
 
     } catch (error) {
         res.status(500).json({ success: false, message: err.message }); 
@@ -201,4 +199,4 @@ res.json({
     }
 })
 
-module.exports.router;
+module.exports = router;
