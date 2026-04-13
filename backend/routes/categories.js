@@ -199,4 +199,11 @@ res.json({
     }
 })
 
+
+router.get('/test', (req, res) => {
+  res.send("TEST WORKING");
+}); 
+
+
+
 module.exports = router;

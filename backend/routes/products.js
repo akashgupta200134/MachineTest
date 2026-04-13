@@ -3,10 +3,7 @@ const router = express.Router();
 const db = require('../db/database');
 
 
-
-
 // get products  with server side pagination
-
 
 router.get( '/' , (req ,res) =>{
     try {

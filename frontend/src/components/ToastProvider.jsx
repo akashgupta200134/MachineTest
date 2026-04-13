@@ -1,0 +1,36 @@
+import { createContext, useContext, useState, useCallback } from 'react';
+
+const ToastContext = createContext(null);
+
+export function ToastProvider({ children }) {
+  const [toasts, setToasts] = useState([]);
+
+  const toast = useCallback((message, type = 'success') => {
+    const id = Date.now();
+    setToasts(prev => [...prev, { id, message, type }]);
+    setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 3200);
+  }, []);
+
+  return (
+    <ToastContext.Provider value={toast}>
+      {children}
+      <div className="fixed bottom-6 right-6 z-50 flex flex-col gap-2">
+        {toasts.map(t => (
+          <div
+            key={t.id}
+            className={`toast-animate px-4 py-3 rounded-lg text-sm font-medium shadow-xl border
+              ${t.type === 'success'
+                ? 'bg-green-950 text-green-400 border-green-800'
+                : 'bg-red-950 text-red-400 border-red-800'
+              }`}
+          >
+            {t.type === 'success' ? '✓ ' : '✕ '}
+            {t.message}
+          </div>
+        ))}
+      </div>
+    </ToastContext.Provider>
+  );
+}
+
+export const useToast = () => useContext(ToastContext);
