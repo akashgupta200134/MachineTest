@@ -1,19 +1,19 @@
-import { Routes, Route, Navigate } from "react-router-dom";
-import CategoriesPage from "./pages/Categories";
-import ProductsPage from "./pages/Product";
-import NavbarPage from "./components/Navbar";
+// App.js
+import { Routes, Route, Navigate } from 'react-router-dom';
+import Categories from './pages/Categories';
+import ProductsPage from './pages/Product';
+import './index.css';
+import NavbarPage from './components/Navbar';
 
-function App() {
+export default function App() {
   return (
     <>
       <NavbarPage />
-
       <Routes>
-        <Route path="/" element={<Navigate to="/categories" />} />
-        <Route path="/categories" element={<CategoriesPage />} />
-        <Route path="/products" element={<ProductsPage />} />
+        <Route path="/" element={<Navigate to="/categories" replace />} />
+        <Route path="/categories" element={<Categories />} />
+        <Route path="/products"   element={<ProductsPage />} />
       </Routes>
     </>
   );
 }
-export default App;
