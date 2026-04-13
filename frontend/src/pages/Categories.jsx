@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import api from '../api/axios';
-import CategoryForm from '../components/CategoryForm';
+import CategoryFormPage from '../components/CategoryForm';
 import CategoryTable from '../components/CategoryTable';
 
 export default function CategoriesPage() {
@@ -39,7 +39,7 @@ export default function CategoriesPage() {
   return (
     <div className="container">
       <h2>Category Master</h2>
-      <CategoryForm
+      <CategoryFormPage
         editTarget={editTarget}
         onSave={handleSaveCategories}
         onCancel={() => setEditTarget(null)}
