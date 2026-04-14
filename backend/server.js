@@ -13,14 +13,17 @@ app.use(express.urlencoded({ extended: true }));
 app.use('/api/categories', require('./routes/categories'));
 app.use('/api/products',   require('./routes/products'));
 
+app.get("/", (req, res) => {
+  res.send("Backend is running 🚀");
+});
+
+
 // Health check — test this in browser: http://localhost:5000/api/health
 app.get('/api/health', (req, res) => {
   res.json({ status: 'OK', message: 'Backend is running!' });
 });
 
-app.get("/", (req, res) => {
-  res.send("Backend is running...");
-});
+
 
 const PORT = process.env.PORT || 5001;
 app.listen(PORT, () => {
