@@ -19,7 +19,7 @@ app.get('/api/health', (req, res) => {
 });
 
 app.get("/", (req, res) => {
-  res.send("Backend is running 🚀");
+  res.send("Backend is running...");
 });
 
 const PORT = process.env.PORT || 5001;
