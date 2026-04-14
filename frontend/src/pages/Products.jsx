@@ -20,29 +20,49 @@ export default function Products() {
   const searchTimer = useRef(null);
 
   // Load categories for dropdown
-  useEffect(() => {
-    api.get('/categories')
-      .then(res => setCategories(res.data.data))
-      .catch(err => toast(err.message, 'error'));
-  }, [toast]);
+useEffect(() => {
+  const fetchCategories = async () => {
+    try {
+      const res = await api.get('/categories');
+
+      console.log("CATEGORIES API:", res.data);
+
+      const data = res?.data?.data;
+
+      setCategories(Array.isArray(data) ? data : []);
+
+    } catch (err) {
+      console.error("Category load error:", err);
+      setCategories([]);
+      toast(err.message || "Failed to load categories", 'error');
+    }
+  };
+
+  fetchCategories();
+}, [toast]);
 
   // Load products on every filter/page change
-  const loadProducts = useCallback(async () => {
-    try {
-      setLoading(true);
-      const params = { page, pageSize };
-      if (search)     params.search     = search;
-      if (categoryId) params.categoryId = categoryId;
+ const loadProducts = useCallback(async () => {
+  try {
+    setLoading(true);
 
-      const res = await api.get('/products', { params });
-      setProducts(res.data.data);
-      setPagination(res.data.pagination);
-    } catch (err) {
-      toast(err.message, 'error');
-    } finally {
-      setLoading(false);
-    }
-  }, [page, pageSize, search, categoryId, toast]);
+    const params = { page, pageSize };
+    if (search) params.search = search;
+    if (categoryId) params.categoryId = categoryId;
+
+    const res = await api.get('/products', { params });
+
+    const data = res?.data?.data;
+
+    setProducts(Array.isArray(data) ? data : []);
+    setPagination(res?.data?.pagination || {});
+  } catch (err) {
+    toast(err.message, 'error');
+    setProducts([]); // 🔥 IMPORTANT fallback
+  } finally {
+    setLoading(false);
+  }
+}, [page, pageSize, search, categoryId, toast]);
 
   useEffect(() => { loadProducts(); }, [loadProducts]);
 

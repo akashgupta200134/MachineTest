@@ -4,31 +4,34 @@ const router = express.Router();
 const db = require("../db/database")
 
 
+
+router.get('/test', (req, res) => {
+  res.send("TEST WORKING");
+});
+
 //get all categories
 
-router.get('/',(req , res) =>{
-    try {
-         
-        const data = db.prepare(
-            'SELECT * FROM categories ORDER BY CategoryName'
-        ).all();
+router.get('/', (req, res) => {
+  try {
+    const data = db
+      .prepare('SELECT * FROM categories ORDER BY CategoryName')
+      .all();   // ✅ MUST be ALL()
 
-        res.json(({
-            success : true , data
-        }))
+    console.log("DB DATA:", data); // debug
 
+    res.json({
+      success: true,
+      data: data || []
+    });
 
-    } catch (error) {
-        res.status(500).json({
-            success :false , 
-            message : error.message
-        }) 
-        console.log("Error while fetching the Categories");
-         
-         
-        
-    }
-})
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      data: [],
+      message: error.message
+    });
+  }
+});
 
 
 // get single category
@@ -86,18 +89,21 @@ router.post('/' , (req ,res) => {
 
     } 
     
-    catch (error) {
+   catch (error) {
 
-    if (err.message.includes('UNIQUE')){
-    return(
-    res.status(400).json({ success: false, message: 'Category name already exists' })
-     )}
+  if (error.message.includes('UNIQUE')) {
+    return res.status(400).json({
+      success: false,
+      message: 'Category name already exists'
+    });
+  }
 
+  res.status(500).json({
+    success: false,
+    message: error.message
+  });
 
-    res.status(500).json({ success: false, message: err.message });
-    console.log('Getting error while creating category');
-    
-
+  console.log('Getting error while creating category');
 }
 }
 );
@@ -194,15 +200,14 @@ res.json({
 })
 
     } catch (error) {
-        res.status(500).json({ success: false, message: err.message }); 
+        res.status(500).json({ success: false, message: error.message }); 
 
     }
 })
 
-
-router.get('/test', (req, res) => {
-  res.send("TEST WORKING");
-}); 
+console.log(
+  db.prepare('SELECT * FROM categories').all()
+);
 
 
 
