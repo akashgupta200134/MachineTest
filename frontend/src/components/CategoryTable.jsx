@@ -1,6 +1,11 @@
+
+
+
+
 export default function CategoryTable({ categories, onEdit, onDelete, loading }) {
   const th = "text-left py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider";
   const td = "py-3 px-4 border-b border-gray-800";
+
 
   return (
     <div className="bg-gray-900 border border-gray-800 rounded-xl p-6">
