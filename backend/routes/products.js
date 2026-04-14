@@ -1,242 +1,151 @@
 const express = require('express');
-const router = express.Router();
-const db = require('../db/database');
+const router  = express.Router();
+const db      = require('../db/database');
 
-
-// ========================
-// GET PRODUCTS (PAGINATION + FILTER)
-// ========================
+// GET products with SERVER-SIDE PAGINATION
 router.get('/', (req, res) => {
-  try {
-    const page = Math.max(1, parseInt(req.query.page) || 1);
-    const pageSize = Math.max(1, parseInt(req.query.pageSize) || 10);
-    const offset = (page - 1) * pageSize;
+  const page      = Math.max(1, parseInt(req.query.page)     || 1);
+  const pageSize  = Math.max(1, parseInt(req.query.pageSize) || 10);
+  const search    = req.query.search     ? `%${req.query.search}%`      : null;
+  const catFilter = req.query.categoryId ? parseInt(req.query.categoryId) : null;
+  const offset    = (page - 1) * pageSize;  // page 9, size 10 → offset 80
 
-    const search = req.query.search ? `%${req.query.search}%` : null;
-    const catFilter = req.query.categoryId
-      ? parseInt(req.query.categoryId)
-      : null;
-
-    let where = 'WHERE 1=1';
-    const args = [];
-
-    if (search) {
-      where += ' AND (p.ProductName LIKE ? OR c.CategoryName LIKE ?)';
-      args.push(search, search);
-    }
-
-    if (catFilter) {
-      where += ' AND p.CategoryId = ?';
-      args.push(catFilter);
-    }
-
-    const { total } = db
-      .prepare(
-        `
-      SELECT COUNT(*) as total
-      FROM products p
-      JOIN categories c ON p.CategoryId = c.CategoryId
-      ${where}
-    `
-      )
-      .get(...args);
-
-    const products = db
-      .prepare(
-        `
-      SELECT
-        p.ProductId,
-        p.ProductName,
-        p.CategoryId,
-        c.CategoryName,
-        p.Price,
-        p.Stock,
-        p.Description,
-        p.CreatedAt
-      FROM products p
-      JOIN categories c ON p.CategoryId = c.CategoryId
-      ${where}
-      ORDER BY p.ProductId DESC
-      LIMIT ? OFFSET ?
-    `
-      )
-      .all(...args, pageSize, offset);
-
-    // ✅ ALWAYS return array
-    res.json({
-      success: true,
-      data: Array.isArray(products) ? products : [],
-      pagination: {
-        page,
-        pageSize,
-        total,
-        totalPages: Math.ceil(total / pageSize),
-        from: total === 0 ? 0 : offset + 1,
-        to: Math.min(offset + pageSize, total),
-      },
-    });
-  } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
+  let where  = 'WHERE 1=1';
+  const args = [];
+  if (search) {
+    where += ' AND (p.ProductName LIKE ? OR c.CategoryName LIKE ?)';
+    args.push(search, search);
   }
+  if (catFilter) {
+    where += ' AND p.CategoryId = ?';
+    args.push(catFilter);
+  }
+
+  // First get total count
+  db.get(
+    `SELECT COUNT(*) as total FROM products p
+     JOIN categories c ON p.CategoryId = c.CategoryId ${where}`,
+    args,
+    (err, countRow) => {
+      if (err) return res.status(500).json({ success: false, message: err.message });
+
+      const total = countRow.total;
+
+      // Then fetch only current page rows — LIMIT + OFFSET
+      db.all(
+        `SELECT p.ProductId, p.ProductName, p.CategoryId, c.CategoryName,
+                p.Price, p.Stock, p.Description, p.CreatedAt
+         FROM products p
+         JOIN categories c ON p.CategoryId = c.CategoryId
+         ${where}
+         ORDER BY p.ProductId DESC
+         LIMIT ? OFFSET ?`,
+        [...args, pageSize, offset],
+        (err, rows) => {
+          if (err) return res.status(500).json({ success: false, message: err.message });
+          res.json({
+            success: true,
+            data: rows,
+            pagination: {
+              page, pageSize, total,
+              totalPages: Math.ceil(total / pageSize),
+              from: total === 0 ? 0 : offset + 1,
+              to:   Math.min(offset + pageSize, total),
+            }
+          });
+        }
+      );
+    }
+  );
 });
 
-
-// ========================
-// GET SINGLE PRODUCT
-// ========================
+// GET single product
 router.get('/:id', (req, res) => {
-  try {
-
-    const row = db.prepare(`
-      SELECT p.*, c.CategoryName
-      FROM products p
-      JOIN categories c ON p.CategoryId = c.CategoryId
-      WHERE p.ProductId = ?
-    `).get(req.params.id);
-
-    if (!row) {
-      return res.status(404).json({
-        success: false,
-        message: "Product not found"
-      });
+  db.get(
+    `SELECT p.*, c.CategoryName FROM products p
+     JOIN categories c ON p.CategoryId = c.CategoryId
+     WHERE p.ProductId = ?`,
+    [req.params.id],
+    (err, row) => {
+      if (err)  return res.status(500).json({ success: false, message: err.message });
+      if (!row) return res.status(404).json({ success: false, message: 'Product not found' });
+      res.json({ success: true, data: row });
     }
-
-    res.json({
-      success: true,
-      data: row
-    });
-
-  } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
-  }
+  );
 });
 
-
-// ========================
-// CREATE PRODUCT
-// ========================
+// POST create product
 router.post('/', (req, res) => {
-  try {
+  const { ProductName, CategoryId, Price, Stock, Description } = req.body;
+  if (!ProductName?.trim())
+    return res.status(400).json({ success: false, message: 'Product name is required' });
+  if (!CategoryId)
+    return res.status(400).json({ success: false, message: 'Category is required' });
+  if (Price == null || isNaN(Price))
+    return res.status(400).json({ success: false, message: 'Valid price is required' });
 
-    const { ProductName, CategoryId, Price, Stock, Description } = req.body;
-
-    if (!ProductName?.trim()) {
-      return res.status(400).json({
-        success: false,
-        message: "Product name required"
-      });
+  db.run(
+    'INSERT INTO products (ProductName, CategoryId, Price, Stock, Description) VALUES (?, ?, ?, ?, ?)',
+    [ProductName.trim(), CategoryId, parseFloat(Price), parseInt(Stock) || 0, Description || ''],
+    function (err) {
+      if (err) return res.status(500).json({ success: false, message: err.message });
+      db.get(
+        `SELECT p.*, c.CategoryName FROM products p
+         JOIN categories c ON p.CategoryId = c.CategoryId
+         WHERE p.ProductId = ?`,
+        [this.lastID],
+        (err, row) => {
+          if (err) return res.status(500).json({ success: false, message: err.message });
+          res.status(201).json({ success: true, data: row, message: 'Product created successfully' });
+        }
+      );
     }
-
-    const result = db.prepare(`
-      INSERT INTO products (ProductName, CategoryId, Price, Stock, Description)
-      VALUES (?, ?, ?, ?, ?)
-    `).run(
-      ProductName.trim(),
-      CategoryId,
-      parseFloat(Price),
-      parseInt(Stock) || 0,
-      Description || ''
-    );
-
-    const newRow = db.prepare(`
-      SELECT p.*, c.CategoryName
-      FROM products p
-      JOIN categories c ON p.CategoryId = c.CategoryId
-      WHERE p.ProductId = ?
-    `).get(result.lastInsertRowid);
-
-    res.status(201).json({
-      success: true,
-      data: newRow,
-      message: "Product created successfully"
-    });
-
-  } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
-  }
+  );
 });
 
-
-// ========================
-// UPDATE PRODUCT
-// ========================
+// PUT update product
 router.put('/:id', (req, res) => {
-  try {
+  const { ProductName, CategoryId, Price, Stock, Description } = req.body;
+  if (!ProductName?.trim())
+    return res.status(400).json({ success: false, message: 'Product name is required' });
+  if (!CategoryId)
+    return res.status(400).json({ success: false, message: 'Category is required' });
 
-    const { ProductName, CategoryId, Price, Stock, Description } = req.body;
+  db.get('SELECT ProductId FROM products WHERE ProductId = ?', [req.params.id], (err, row) => {
+    if (err)  return res.status(500).json({ success: false, message: err.message });
+    if (!row) return res.status(404).json({ success: false, message: 'Product not found' });
 
-    const exists = db.prepare(
-      'SELECT ProductId FROM products WHERE ProductId = ?'
-    ).get(req.params.id);
-
-    if (!exists) {
-      return res.status(404).json({
-        success: false,
-        message: "Product not found"
-      });
-    }
-
-    db.prepare(`
-      UPDATE products
-      SET ProductName=?, CategoryId=?, Price=?, Stock=?, Description=?
-      WHERE ProductId=?
-    `).run(
-      ProductName.trim(),
-      CategoryId,
-      parseFloat(Price) || 0,
-      parseInt(Stock) || 0,
-      Description || '',
-      req.params.id
+    db.run(
+      'UPDATE products SET ProductName=?, CategoryId=?, Price=?, Stock=?, Description=? WHERE ProductId=?',
+      [ProductName.trim(), CategoryId, parseFloat(Price)||0, parseInt(Stock)||0, Description||'', req.params.id],
+      function (err) {
+        if (err) return res.status(500).json({ success: false, message: err.message });
+        db.get(
+          `SELECT p.*, c.CategoryName FROM products p
+           JOIN categories c ON p.CategoryId = c.CategoryId
+           WHERE p.ProductId = ?`,
+          [req.params.id],
+          (err, updated) => {
+            if (err) return res.status(500).json({ success: false, message: err.message });
+            res.json({ success: true, data: updated, message: 'Product updated successfully' });
+          }
+        );
+      }
     );
-
-    const updated = db.prepare(`
-      SELECT p.*, c.CategoryName
-      FROM products p
-      JOIN categories c ON p.CategoryId = c.CategoryId
-      WHERE p.ProductId = ?
-    `).get(req.params.id);
-
-    res.json({
-      success: true,
-      data: updated,
-      message: "Product updated successfully"
-    });
-
-  } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
-  }
+  });
 });
 
-
-// ========================
-// DELETE PRODUCT
-// ========================
+// DELETE product
 router.delete('/:id', (req, res) => {
-  try {
+  db.get('SELECT ProductId FROM products WHERE ProductId = ?', [req.params.id], (err, row) => {
+    if (err)  return res.status(500).json({ success: false, message: err.message });
+    if (!row) return res.status(404).json({ success: false, message: 'Product not found' });
 
-    const exists = db.prepare(
-      'SELECT ProductId FROM products WHERE ProductId = ?'
-    ).get(req.params.id);
-
-    if (!exists) {
-      return res.status(404).json({
-        success: false,
-        message: "Product not found"
-      });
-    }
-
-    db.prepare(
-      'DELETE FROM products WHERE ProductId = ?'
-    ).run(req.params.id);
-
-    res.json({
-      success: true,
-      message: "Product deleted successfully"
+    db.run('DELETE FROM products WHERE ProductId = ?', [req.params.id], (err) => {
+      if (err) return res.status(500).json({ success: false, message: err.message });
+      res.json({ success: true, message: 'Product deleted successfully' });
     });
-
-  } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
-  }
+  });
 });
 
 module.exports = router;

@@ -1,214 +1,95 @@
-const express = require('express')
+const express = require('express');
+const router  = express.Router();
+const db      = require('../db/database');
 
-const router = express.Router();
-const db = require("../db/database")
-
-
-
-router.get('/test', (req, res) => {
-  res.send("TEST WORKING");
-});
-
-//get all categories
-
+// GET all categories
 router.get('/', (req, res) => {
-  try {
-    const data = db
-      .prepare('SELECT * FROM categories ORDER BY CategoryName')
-      .all();   // ✅ MUST be ALL()
-
-    console.log("DB DATA:", data); // debug
-
-    res.json({
-      success: true,
-      data: data || []
-    });
-
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      data: [],
-      message: error.message
-    });
-  }
+  db.all('SELECT * FROM categories ORDER BY CategoryName', [], (err, rows) => {
+    if (err) return res.status(500).json({ success: false, message: err.message });
+    res.json({ success: true, data: rows });
+  });
 });
 
+// GET single category
+router.get('/:id', (req, res) => {
+  db.get('SELECT * FROM categories WHERE CategoryId = ?', [req.params.id], (err, row) => {
+    if (err)  return res.status(500).json({ success: false, message: err.message });
+    if (!row) return res.status(404).json({ success: false, message: 'Category not found' });
+    res.json({ success: true, data: row });
+  });
+});
 
-// get single category
-router.get("/:id", (req, res) => {
-  try {
-    const row = db
-      .prepare("SELECT * FROM categories WHERE CategoryId = ?")
-      .get(req.params.id);
+// POST create category
+router.post('/', (req, res) => {
+  const { CategoryName, Description } = req.body;
+  if (!CategoryName?.trim())
+    return res.status(400).json({ success: false, message: 'Category name is required' });
 
-    if (!row) {
-      return res.status(404).json({
-        success: false,
-        message: "Category not found",
+  db.run(
+    'INSERT INTO categories (CategoryName, Description) VALUES (?, ?)',
+    [CategoryName.trim(), Description || ''],
+    function (err) {
+      if (err) {
+        if (err.message.includes('UNIQUE'))
+          return res.status(400).json({ success: false, message: 'Category name already exists' });
+        return res.status(500).json({ success: false, message: err.message });
+      }
+      db.get('SELECT * FROM categories WHERE CategoryId = ?', [this.lastID], (err, row) => {
+        if (err) return res.status(500).json({ success: false, message: err.message });
+        res.status(201).json({ success: true, data: row, message: 'Category created successfully' });
       });
     }
-
-    res.json({
-      success: true,
-      data: row,
-    });
-  } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
-    console.log("Getting error while fetching the single category");
-  }
+  );
 });
 
+// PUT update category
+router.put('/:id', (req, res) => {
+  const { CategoryName, Description } = req.body;
+  if (!CategoryName?.trim())
+    return res.status(400).json({ success: false, message: 'Category name is required' });
 
-// Post - create Category 
+  db.get('SELECT CategoryId FROM categories WHERE CategoryId = ?', [req.params.id], (err, row) => {
+    if (err)  return res.status(500).json({ success: false, message: err.message });
+    if (!row) return res.status(404).json({ success: false, message: 'Category not found' });
 
-router.post('/' , (req ,res) => {
-
-    const {CategoryName , Description} = req.body;
-
-    if(!CategoryName?.trim()){
-        return(
-            res.status(400).json({
-                success : false ,
-                message : "Category name is required"
-            })
-        )
-    }
-
-    try {
-
-        const result  = db.prepare(
-            'INSERT INTO categories (CategoryName , Description) VALUES(? , ?)'
-        ).run(CategoryName.trim() , Description || '');
-
-        const newRow = db.prepare(
-    'SELECT * FROM categories WHERE CategoryId = ?'
-    ).get(result.lastInsertRowid);
-     
-     res.status(201).json({ success: true, data: newRow, message: 'Category created successfully' }) 
-
-
-    } 
-    
-   catch (error) {
-
-  if (error.message.includes('UNIQUE')) {
-    return res.status(400).json({
-      success: false,
-      message: 'Category name already exists'
-    });
-  }
-
-  res.status(500).json({
-    success: false,
-    message: error.message
-  });
-
-  console.log('Getting error while creating category');
-}
-}
-);
-
-
-// update category - put
-
-router.put('/:id', (req , res) => {
-    const {CategoryName , Description} = req.body;
-
-    if(!CategoryName?.trim()) {
-        return (
-            res.status(400).json({
-                success:false,
-                message : "Category name is required"
-            })
-        )
-    }
-
-    try {
-         
-        const exists = db.prepare(
-            'SELECT CategoryId FROM categories WHERE CategoryId = ?'
-        ).get(req.params.id);
-
-        if(!exists){
-            return (
-                res.status(400).json({
-                    success:false , 
-                    message : 'Categorynot found'
-                })
-            )
-
+    db.run(
+      'UPDATE categories SET CategoryName = ?, Description = ? WHERE CategoryId = ?',
+      [CategoryName.trim(), Description || '', req.params.id],
+      function (err) {
+        if (err) {
+          if (err.message.includes('UNIQUE'))
+            return res.status(400).json({ success: false, message: 'Category name already exists' });
+          return res.status(500).json({ success: false, message: err.message });
         }
+        db.get('SELECT * FROM categories WHERE CategoryId = ?', [req.params.id], (err, updated) => {
+          if (err) return res.status(500).json({ success: false, message: err.message });
+          res.json({ success: true, data: updated, message: 'Category updated successfully' });
+        });
+      }
+    );
+  });
+});
 
+// DELETE category
+router.delete('/:id', (req, res) => {
+  db.get('SELECT CategoryId FROM categories WHERE CategoryId = ?', [req.params.id], (err, row) => {
+    if (err)  return res.status(500).json({ success: false, message: err.message });
+    if (!row) return res.status(404).json({ success: false, message: 'Category not found' });
 
-              // category updation here 
-        db.prepare(
-            'UPDATE categories SET CategoryName = ?, Description = ? WHERE CategoryId = ?'
-        ).run(CategoryName.trim() , Description || '' , req.params.id);
+    db.get('SELECT COUNT(*) as cnt FROM products WHERE CategoryId = ?', [req.params.id], (err, result) => {
+      if (err) return res.status(500).json({ success: false, message: err.message });
+      if (result.cnt > 0)
+        return res.status(400).json({
+          success: false,
+          message: `Cannot delete — ${result.cnt} product(s) use this category`
+        });
 
-  
-        const updated = db.prepare(
-            ' SELECT * FROM categories WHERE CategoryId = ?'
-        ).get(req.params.id)
-
-       res.json({ success: true, data: updated, message:'Category updated successfully' });
-  } 
-  
-  catch (err) {
-    if (err.message.includes('UNIQUE')){
-      return (
-        res.status(400).json({ success:false, message:'Category name already exists'})
-      )
-    }
-     
-    res.status(500).json({ success: false, message: err.message });
-  }
-})
-
-
-//Delete Category
-
-router.delete('/:id' , (req, res) =>{
-    try {
-         
-        const exists = db.prepare(
-        'SELECT CategoryId FROM categories WHERE CategoryId = ?'  
-        ).get(req.params.id);
-
-         if (!exists){
-          return res.status(404).json({ success: false, message: 'Category not found' });
-         }
-
-// Block delete if products exist under this category
-
-const {cnt} = db.prepare(
-    'SELECT COUNT(*) as cnt FROM  products WHERE CategoryId = ?'
-).get(req.params.id);
-
-if(cnt > 0 ){
-    return(
-        res.status(400).json({
-            success:false,
-            message : `Can not delete - ${cnt} product(s) use this category`
-        })
-    ) 
-}
-
-
-db.prepare('DELETE FROM categories WHERE CategoryId = ?').run(req.params.id);
-res.json({
-    success : true , message: "category delete sucessfully"
-})
-
-    } catch (error) {
-        res.status(500).json({ success: false, message: error.message }); 
-
-    }
-})
-
-console.log(
-  db.prepare('SELECT * FROM categories').all()
-);
-
-
+      db.run('DELETE FROM categories WHERE CategoryId = ?', [req.params.id], (err) => {
+        if (err) return res.status(500).json({ success: false, message: err.message });
+        res.json({ success: true, message: 'Category deleted successfully' });
+      });
+    });
+  });
+});
 
 module.exports = router;
