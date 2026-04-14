@@ -14,7 +14,7 @@ export default function Categories() {
     try {
       setLoading(true);
       const res = await api.get('/categories');
-      setCategories(res.data.data);
+setCategories(Array.isArray(res.data.data) ? res.data.data : []);
     } catch (err) {
       toast(err.message, 'error');
     } finally {
@@ -36,7 +36,10 @@ export default function Categories() {
       setEditTarget(null);
       load();
     } catch (err) {
-      toast(err.message, 'error');
+      toast(
+  err.response?.data?.message || err.message,
+  'error'
+);
       throw err;
     }
   };
@@ -48,7 +51,10 @@ export default function Categories() {
       toast('Category deleted successfully');
       load();
     } catch (err) {
-      toast(err.message, 'error');
+      toast(
+  err.response?.data?.message || err.message,
+  'error'
+);
     }
   };
 console.log("EDIT TARGET:", editTarget);
